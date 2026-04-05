@@ -1,9 +1,9 @@
-# NLP CA-3 Mini Project: Text Summarization of News Articles
+# NLP Mini Project: Text Summarization of News Articles
 
 ## Overview
 
 Implements and compares **6 summarization models** on the CNN/DailyMail dataset,
-covering all 5 CA-3 task requirements: dataset selection, preprocessing,
+covering all : dataset selection, preprocessing,
 ≥5 models, evaluation (Precision/Recall/F1), and comparative analysis.
 
 | Type | Models |
