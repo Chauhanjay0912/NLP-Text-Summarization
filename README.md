@@ -71,7 +71,7 @@ NLP-Text-Summarization/
 ## Setup
 
 ```bash
-git clone https://github.com/<your-username>/NLP-Text-Summarization.git
+git clone https://github.com/Chauhanjay0912/NLP-Text-Summarization.git
 cd NLP-Text-Summarization
 pip install -r requirements.txt
 ```
