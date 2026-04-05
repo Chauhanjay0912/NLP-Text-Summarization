@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+env/
+
+# Large binary outputs (pkl files are too large for GitHub)
+outputs/*.pkl
+
+# HuggingFace model cache
+~/.cache/huggingface/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db

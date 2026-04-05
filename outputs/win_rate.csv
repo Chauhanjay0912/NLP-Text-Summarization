@@ -1,0 +1,6 @@
+Model,Wins,Losses,Ties,Win%
+TextRank,91,105,4,45.5
+LSA,67,133,0,33.5
+LexRank,89,109,2,44.5
+T5-small,113,87,0,56.5
+BART,138,61,1,69.0
