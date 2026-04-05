@@ -1,6 +1,6 @@
 Model,Wins,Losses,Ties,Win%
-TextRank,91,105,4,45.5
-LSA,67,133,0,33.5
+TextRank,82,115,3,41.0
+LSA,50,149,1,25.0
 LexRank,89,109,2,44.5
-T5-small,113,87,0,56.5
-BART,138,61,1,69.0
+PEGASUS,119,81,0,59.5
+BART,138,62,0,69.0

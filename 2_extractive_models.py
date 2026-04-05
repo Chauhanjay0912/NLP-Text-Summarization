@@ -62,10 +62,10 @@ def lead_n_summarize(sentences: list, n: int = TOP_N) -> str:
 # ═══════════════════════════════════════════════════════════════════════
 #  MODEL 2: TextRank
 # ═══════════════════════════════════════════════════════════════════════
-def textrank_summarize(sentences: list, n: int = TOP_N) -> str:
+def textrank_summarize(sentences: list, processed_tokens: list, n: int = TOP_N) -> str:
     """
     TextRank Algorithm:
-      1. TF-IDF vectorize sentences
+      1. TF-IDF vectorize preprocessed (lemmatized, no-stopword) tokens
       2. Build cosine-similarity adjacency matrix
       3. PageRank to score sentences
       4. Return top-n in original order
@@ -73,8 +73,9 @@ def textrank_summarize(sentences: list, n: int = TOP_N) -> str:
     if len(sentences) <= n:
         return " ".join(sentences)
     try:
-        tfidf  = TfidfVectorizer(stop_words="english")
-        matrix = tfidf.fit_transform(sentences)
+        proc_sents = [" ".join(toks) for toks in processed_tokens]
+        tfidf  = TfidfVectorizer()
+        matrix = tfidf.fit_transform(proc_sents)
         sim    = cosine_similarity(matrix)
         np.fill_diagonal(sim, 0)
         graph  = nx.from_numpy_array(sim)
@@ -88,11 +89,11 @@ def textrank_summarize(sentences: list, n: int = TOP_N) -> str:
 # ═══════════════════════════════════════════════════════════════════════
 #  MODEL 3: LSA (Latent Semantic Analysis)
 # ═══════════════════════════════════════════════════════════════════════
-def lsa_summarize(sentences: list, n: int = TOP_N, n_components: int = 5) -> str:
+def lsa_summarize(sentences: list, n: int = TOP_N) -> str:
     """
     LSA Algorithm:
       1. TF-IDF vectorize sentences  (sentences × terms)
-      2. TruncatedSVD to discover k latent topics
+      2. TruncatedSVD with dynamic k = min(10, len//2) latent topics
       3. Score each sentence by L2 norm of its topic vector
       4. Return top-n sentences in original order
     """
@@ -101,7 +102,7 @@ def lsa_summarize(sentences: list, n: int = TOP_N, n_components: int = 5) -> str
     try:
         tfidf      = TfidfVectorizer(stop_words="english", max_features=5000)
         matrix     = tfidf.fit_transform(sentences)
-        k          = min(n_components, matrix.shape[0] - 1, matrix.shape[1] - 1)
+        k          = min(10, len(sentences) // 2, matrix.shape[0] - 1, matrix.shape[1] - 1)
         if k < 1:
             return lead_n_summarize(sentences, n)
         svd        = TruncatedSVD(n_components=k, random_state=42)
@@ -182,7 +183,7 @@ for sample in tqdm(data, desc="Extractive Models"):
 
     summaries = {
         "Lead-3"   : lead_n_summarize(sents),
-        "TextRank" : textrank_summarize(sents),
+        "TextRank" : textrank_summarize(sents, proc),
         "LSA"      : lsa_summarize(sents),
         "LexRank"  : lexrank_summarize(sents, proc),
     }

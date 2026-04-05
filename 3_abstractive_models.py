@@ -3,8 +3,8 @@ Script 3: Abstractive Summarization Models
 ==========================================
 Implements 2 abstractive models using HuggingFace Transformers:
 
-  Model 5 – T5-small         : "summarize:" prefix → seq2seq generation
-  Model 6 – BART-large-cnn   : beam search, fine-tuned on CNN/DailyMail
+  Model 5 – PEGASUS-CNN      : fine-tuned on CNN/DailyMail, beam search (k=8)
+  Model 6 – BART-large-cnn   : beam search (k=6), fine-tuned on CNN/DailyMail
 
   - Auto-detects CUDA GPU (falls back to CPU)
   - Batched inference for efficiency
@@ -59,9 +59,9 @@ data = data[:EVAL_SAMPLES]
 print(f"[INFO] Loaded {len(data)} preprocessed samples.\n")
 
 # ─── Load Models ──────────────────────────────────────────────────────
-print("[INFO] Loading T5-small (~240 MB, downloads on first run) ...")
+print("[INFO] Loading PEGASUS-CNN (~2.3 GB, downloads on first run) ...")
 t5_pipe = pipeline(
-    "summarization", model="t5-small",
+    "summarization", model="google/pegasus-cnn_dailymail",
     framework="pt", device=device, truncation=True
 )
 
@@ -94,22 +94,19 @@ def run_model(pipe, inputs: list, label: str, **kwargs) -> list:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  MODEL 5: T5-small
+#  MODEL 5: PEGASUS-CNN
 # ═══════════════════════════════════════════════════════════════════════
 articles_raw = [truncate(d["article"]) for d in data]
 references   = [d["reference"]         for d in data]
 ids          = [d["id"]                for d in data]
 
-# T5 requires the "summarize: " task prefix
-t5_inputs = ["summarize: " + a for a in articles_raw]
-
 print("=" * 62)
-print("  Model 5: T5-small")
+print("  Model 5: PEGASUS-CNN")
 print("=" * 62)
 t5_summaries = run_model(
-    t5_pipe, t5_inputs, "T5-small",
-    max_length=150, min_length=40,
-    num_beams=4, early_stopping=True,
+    t5_pipe, articles_raw, "PEGASUS",
+    max_length=200, min_length=30,
+    num_beams=8, early_stopping=True,
     truncation=True
 )
 
@@ -122,8 +119,8 @@ print("  Model 6: BART-large-cnn")
 print("=" * 62)
 bart_summaries = run_model(
     bart_pipe, articles_raw, "BART",
-    max_length=142, min_length=56,
-    num_beams=4, length_penalty=2.0,
+    max_length=200, min_length=30,
+    num_beams=6, length_penalty=1.0,
     early_stopping=True, truncation=True
 )
 
@@ -137,7 +134,7 @@ for sid, ref, t5_sum, bart_sum in zip(ids, references, t5_summaries, bart_summar
     rows.append({
         "id"              : sid,
         "reference"       : ref,
-        # T5
+        # PEGASUS
         "T5-small_summary": t5_sum,
         "T5-small_r1_p"   : round(t5sc["rouge1"].precision,  4),
         "T5-small_r1_r"   : round(t5sc["rouge1"].recall,     4),
@@ -167,21 +164,21 @@ print(f"{'Model':<12} {'R1-Prec':>9} {'R1-Rec':>9} {'R1-F1':>9} {'R2-F1':>9} {'R
 print("─" * 68)
 
 agg = {}
-for name in ["T5-small", "BART"]:
+for name, label in [("T5-small", "PEGASUS"), ("BART", "BART")]:
     r1p = df[f"{name}_r1_p"].mean()
     r1r = df[f"{name}_r1_r"].mean()
     r1f = df[f"{name}_r1_f"].mean()
     r2f = df[f"{name}_r2_f"].mean()
     rLf = df[f"{name}_rL_f"].mean()
-    agg[name] = {"R1-Prec": r1p, "R1-Rec": r1r, "R1-F1": r1f, "R2-F1": r2f, "RL-F1": rLf}
-    print(f"{name:<12} {r1p:>9.4f} {r1r:>9.4f} {r1f:>9.4f} {r2f:>9.4f} {rLf:>9.4f}")
+    agg[label] = {"R1-Prec": r1p, "R1-Rec": r1r, "R1-F1": r1f, "R2-F1": r2f, "RL-F1": rLf}
+    print(f"{label:<12} {r1p:>9.4f} {r1r:>9.4f} {r1f:>9.4f} {r2f:>9.4f} {rLf:>9.4f}")
 
 # ─── Qualitative Example ──────────────────────────────────────────────
 print("\n\n📰 Qualitative Example (Sample 1):")
 print("─" * 68)
 print(f"Article   : {data[0]['article'][:300]}...\n")
 print(f"Reference : {rows[0]['reference']}\n")
-print(f"[T5-small] {rows[0]['T5-small_summary']}")
+print(f"[PEGASUS]  {rows[0]['T5-small_summary']}")
 print(f"           ROUGE-1 F1={rows[0]['T5-small_r1_f']}  ROUGE-2 F1={rows[0]['T5-small_r2_f']}\n")
 print(f"[BART]     {rows[0]['BART_summary']}")
 print(f"           ROUGE-1 F1={rows[0]['BART_r1_f']}  ROUGE-2 F1={rows[0]['BART_r2_f']}")
@@ -190,17 +187,17 @@ print(f"           ROUGE-1 F1={rows[0]['BART_r1_f']}  ROUGE-2 F1={rows[0]['BART_
 out_pkl = os.path.join(OUTPUTS_DIR, "abstractive_results.pkl")
 out_csv = os.path.join(OUTPUTS_DIR, "abstractive_results.csv")
 with open(out_pkl, "wb") as f:
-    pickle.dump({"df": df, "agg": agg, "models": ["T5-small", "BART"]}, f)
+    pickle.dump({"df": df, "agg": agg, "models": ["PEGASUS", "BART"]}, f)
 df.to_csv(out_csv, index=False, encoding="utf-8")
 
 # ─── Distribution Plot ────────────────────────────────────────────────
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 fig.suptitle("Abstractive Models – ROUGE-1 F1 Score Distributions",
              fontsize=13, fontweight="bold")
-for ax, name, color in zip(axes, ["T5-small", "BART"], ["#CCB974", "#64B5CD"]):
+for ax, (name, label), color in zip(axes, [("T5-small", "PEGASUS-CNN"), ("BART", "BART")], ["#CCB974", "#64B5CD"]):
     col = f"{name}_r1_f"
     ax.hist(df[col], bins=25, color=color, edgecolor="white", alpha=0.85)
-    ax.set_title(name)
+    ax.set_title(label)
     ax.set_xlabel("ROUGE-1 F1")
     ax.set_ylabel("Frequency")
     ax.axvline(df[col].mean(), color="red", linestyle="--",

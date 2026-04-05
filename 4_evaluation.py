@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from bert_score import score as bert_score
 
 # ─── Config ───────────────────────────────────────────────────────────
 OUTPUTS_DIR = "outputs"
@@ -49,9 +50,14 @@ abs_df   = abs_data["df"]
 all_agg  = {**ext_agg, **abs_agg}
 
 EXTRACTIVE  = ["Lead-3", "TextRank", "LSA", "LexRank"]
-ABSTRACTIVE = ["T5-small", "BART"]
+ABSTRACTIVE = ["PEGASUS", "BART"]
 ALL_MODELS  = EXTRACTIVE + ABSTRACTIVE
 METRICS     = ["R1-Prec", "R1-Rec", "R1-F1", "R2-F1", "RL-F1"]
+
+def abs_col(model, suffix):
+    """Map display model name to actual abs_df column name."""
+    col_key = "T5-small" if model == "PEGASUS" else model
+    return f"{col_key}_{suffix}"
 
 # ─── 2. Full Comparison Table ─────────────────────────────────────────
 print("\n\nFULL COMPARISON TABLE -- All 6 Models x ROUGE Scores")
@@ -101,7 +107,8 @@ for model in ALL_MODELS[1:]:    # skip Lead-3 itself
     if model in EXTRACTIVE:
         model_r1 = ext_df[f"{model}_r1_f"].values[:common]
     else:
-        model_r1 = abs_df[f"{model}_r1_f"].values[:common]
+        col_key  = "T5-small" if model == "PEGASUS" else model
+        model_r1 = abs_df[abs_col(model, "r1_f")].values[:common]
     wins  = int((model_r1 > lead3_r1).sum())
     losses = int((model_r1 < lead3_r1).sum())
     ties   = common - wins - losses
@@ -160,7 +167,7 @@ for model in ALL_MODELS:
     if model in EXTRACTIVE:
         box_data.append(ext_df[f"{model}_r1_f"].values)
     else:
-        box_data.append(abs_df[f"{model}_r1_f"].values)
+        box_data.append(abs_df[abs_col(model, "r1_f")].values)
 
 pal = ["#4C72B0","#55A868","#C44E52","#8172B2","#CCB974","#64B5CD"]
 fig, ax = plt.subplots(figsize=(12, 5))
@@ -183,7 +190,30 @@ plt.savefig(box_path, dpi=150)
 plt.show()
 print(f"  Box plot        -> {box_path}")
 
-# ─── 8. Insights Summary ─────────────────────────────────────────────
+# ─── 8. BERTScore Evaluation ─────────────────────────────────────────
+print("\n\nBERTScore Evaluation (semantic similarity, all 6 models):")
+print("-" * 60)
+bert_rows = []
+for model in ALL_MODELS:
+    if model in EXTRACTIVE:
+        summaries = ext_df[f"{model}_summary"].tolist()[:200]
+        refs      = ext_df["reference"].tolist()[:200]
+    else:
+        summaries = abs_df[abs_col(model, "summary")].tolist()
+        refs      = abs_df["reference"].tolist()
+    P, R, F1 = bert_score(summaries, refs, lang="en",
+                          model_type="distilbert-base-uncased", verbose=False)
+    bp, br, bf = P.mean().item(), R.mean().item(), F1.mean().item()
+    print(f"  {model:<12}: P={bp:.4f}  R={br:.4f}  F1={bf:.4f}")
+    bert_rows.append({"Model": model, "BERT-P": round(bp,4),
+                      "BERT-R": round(br,4), "BERT-F1": round(bf,4)})
+
+bert_df = pd.DataFrame(bert_rows)
+bert_path = os.path.join(OUTPUTS_DIR, "bertscore_results.csv")
+bert_df.to_csv(bert_path, index=False)
+print(f"\n  BERTScore CSV   -> {bert_path}")
+
+# ─── 9. Insights Summary ─────────────────────────────────────────────
 print("\n\nKey Insights")
 print("=" * 68)
 
@@ -213,8 +243,8 @@ print(f"""
   7. BART (fine-tuned on CNN/DailyMail) consistently achieves the highest scores
      because its pretraining distribution matches the evaluation dataset exactly.
 
-  8. T5-small trades quality for speed — far smaller model size (~240MB vs 1.6GB)
-     makes it preferable in resource-constrained environments.
+  8. PEGASUS-CNN (~2.3GB) is fine-tuned on CNN/DailyMail like BART, making it
+     a strong alternative when BART's larger size is a constraint.
 """)
 
 print("Evaluation complete!")
